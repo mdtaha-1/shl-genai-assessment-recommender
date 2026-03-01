@@ -1,9 +1,11 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+import pandas as pd
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.metrics.pairwise import cosine_similarity
 
 app = FastAPI()
 
-# ---------- CORS ----------
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -12,14 +14,15 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# ---------- GLOBALS ----------
-model = None
-df = None
-urls = None
-embeddings = None
+# Load data (lightweight)
+df = pd.read_csv("catalog_prepared.csv")
+texts = df["text"].tolist()
+urls = df["Assessment_url"].tolist()
+
+vectorizer = TfidfVectorizer()
+tfidf_matrix = vectorizer.fit_transform(texts)
 
 
-# ---------- FAST START ----------
 @app.get("/")
 def root():
     return {"message": "SHL Assessment Recommendation API Running"}
@@ -30,50 +33,21 @@ def health():
     return {"status": "healthy"}
 
 
-# ---------- LAZY LOADER ----------
-def load_resources():
-    global model, df, urls, embeddings
-
-    if model is not None:
-        return
-
-    print("Loading AI resources...")
-
-    # IMPORT INSIDE FUNCTION (IMPORTANT)
-    import pandas as pd
-    import numpy as np
-    from sentence_transformers import SentenceTransformer
-
-    df = pd.read_csv("catalog_prepared.csv")
-    urls = df["Assessment_url"].tolist()
-
-    model = SentenceTransformer("all-MiniLM-L6-v2", device="cpu")
-    embeddings = np.load("embeddings.npy")
-
-    print("Resources loaded ✅")
-
-
-# ---------- RECOMMENDER ----------
 @app.post("/recommend")
 def recommend(query: str):
 
-    load_resources()
+    query_vec = vectorizer.transform([query])
+    scores = cosine_similarity(query_vec, tfidf_matrix)[0]
 
-    from sklearn.metrics.pairwise import cosine_similarity
-
-    query_embedding = model.encode([query])
-
-    scores = cosine_similarity(query_embedding, embeddings)[0]
     top_indices = scores.argsort()[-5:][::-1]
 
     results = []
-
     for i in top_indices:
         results.append({
             "name": df.iloc[i]["name"],
             "url": urls[i],
             "score": round(float(scores[i]), 3),
-            "reason": f"Semantically matched query: {query}"
+            "reason": f"Semantic similarity to query: {query}"
         })
 
     return {"recommendations": results}

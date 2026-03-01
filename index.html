@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>SHL Assessment Recommendation</title>
+</head>
+
+<body>
+
+    <h2>SHL AI Assessment Recommender</h2>
+
+    <input type="text" id="query" placeholder="Enter job description..." style="width:400px;">
+    <button onclick="getRecommendations()">Recommend</button>
+
+    <ul id="results"></ul>
+
+    <script>
+        async function getRecommendations() {
+
+            const query = document.getElementById("query").value;
+
+            const res = await fetch(
+                `http://127.0.0.1:8000/recommend?query=${encodeURIComponent(query)}`,
+                { method: "POST" }
+            );
+
+            const data = await res.json();
+
+            const list = document.getElementById("results");
+            list.innerHTML = "";
+
+            data.recommendations.forEach(item => {
+                const li = document.createElement("li");
+                li.innerHTML = `<a href="${item.url}" target="_blank">${item.name}</a>`;
+                list.appendChild(li);
+            });
+        }
+    </script>
+
+</body>
+
+</html>

@@ -7,9 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 app = FastAPI()
 
-# ----------------------------
-# CORS (frontend access)
-# ----------------------------
+# CORS
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -18,22 +16,25 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# ----------------------------
-# GLOBAL VARIABLES (loaded at startup)
-# ----------------------------
+# ---------- GLOBALS ----------
 df = None
 urls = None
 model = None
 embeddings = None
 
 
-# ----------------------------
-# LOAD EVERYTHING AFTER SERVER STARTS
-# (Fixes Render timeout issue)
-# ----------------------------
+# ---------- FAST STARTUP ----------
 @app.on_event("startup")
+def quick_start():
+    print("FastAPI started ✅")
+
+
+# ---------- LAZY LOADER ----------
 def load_resources():
     global df, urls, model, embeddings
+
+    if model is not None:
+        return
 
     print("Loading data...")
     df = pd.read_csv("catalog_prepared.csv")
@@ -45,44 +46,37 @@ def load_resources():
     print("Loading embeddings...")
     embeddings = np.load("embeddings.npy")
 
-    print("Startup complete ✅")
+    print("Resources loaded ✅")
 
 
-# ----------------------------
-# ROOT ROUTE
-# ----------------------------
+# ---------- ROUTES ----------
 @app.get("/")
 def root():
     return {"message": "SHL Assessment Recommendation API Running"}
 
-
-# ----------------------------
-# HEALTH CHECK (Render friendly)
-# ----------------------------
 @app.get("/health")
 def health():
     return {"status": "healthy"}
 
 
-# ----------------------------
-# RECOMMENDATION API
-# ----------------------------
 @app.post("/recommend")
 def recommend(query: str):
 
-    query_embedding = model.encode([query])
+    # Load only when first request comes
+    load_resources()
 
+    query_embedding = model.encode([query])
     scores = cosine_similarity(query_embedding, embeddings)[0]
+
     top_indices = scores.argsort()[-5:][::-1]
 
     results = []
-
     for i in top_indices:
         results.append({
             "name": df.iloc[i]["name"],
             "url": urls[i],
             "score": round(float(scores[i]), 3),
-            "reason": f"Recommended because it semantically matches the query: {query}"
+            "reason": f"Semantically matched with query: {query}"
         })
 
     return {"recommendations": results}

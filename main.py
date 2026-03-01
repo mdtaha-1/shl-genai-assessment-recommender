@@ -33,7 +33,7 @@ def health():
     return {"status": "healthy"}
 
 
-@app.post("/recommend")
+@app.api_route("/recommend", methods=["GET", "POST"])
 def recommend(query: str):
 
     query_vec = vectorizer.transform([query])
@@ -51,3 +51,4 @@ def recommend(query: str):
         })
 
     return {"recommendations": results}
+

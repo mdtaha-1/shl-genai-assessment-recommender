@@ -1,13 +1,9 @@
 from fastapi import FastAPI
-import pandas as pd
-import numpy as np
-from sentence_transformers import SentenceTransformer
-from sklearn.metrics.pairwise import cosine_similarity
 from fastapi.middleware.cors import CORSMiddleware
 
 app = FastAPI()
 
-# CORS
+# ---------- CORS ----------
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -17,66 +13,67 @@ app.add_middleware(
 )
 
 # ---------- GLOBALS ----------
+model = None
 df = None
 urls = None
-model = None
 embeddings = None
 
 
-# ---------- FAST STARTUP ----------
-@app.on_event("startup")
-def quick_start():
-    print("FastAPI started ✅")
-
-
-# ---------- LAZY LOADER ----------
-def load_resources():
-    global df, urls, model, embeddings
-
-    if model is not None:
-        return
-
-    print("Loading data...")
-    df = pd.read_csv("catalog_prepared.csv")
-    urls = df["Assessment_url"].tolist()
-
-    print("Loading model...")
-    model = SentenceTransformer("all-MiniLM-L6-v2")
-
-    print("Loading embeddings...")
-    embeddings = np.load("embeddings.npy")
-
-    print("Resources loaded ✅")
-
-
-# ---------- ROUTES ----------
+# ---------- FAST START ----------
 @app.get("/")
 def root():
     return {"message": "SHL Assessment Recommendation API Running"}
+
 
 @app.get("/health")
 def health():
     return {"status": "healthy"}
 
 
+# ---------- LAZY LOADER ----------
+def load_resources():
+    global model, df, urls, embeddings
+
+    if model is not None:
+        return
+
+    print("Loading AI resources...")
+
+    # IMPORT INSIDE FUNCTION (IMPORTANT)
+    import pandas as pd
+    import numpy as np
+    from sentence_transformers import SentenceTransformer
+
+    df = pd.read_csv("catalog_prepared.csv")
+    urls = df["Assessment_url"].tolist()
+
+    model = SentenceTransformer("all-MiniLM-L6-v2", device="cpu")
+    embeddings = np.load("embeddings.npy")
+
+    print("Resources loaded ✅")
+
+
+# ---------- RECOMMENDER ----------
 @app.post("/recommend")
 def recommend(query: str):
 
-    # Load only when first request comes
     load_resources()
 
-    query_embedding = model.encode([query])
-    scores = cosine_similarity(query_embedding, embeddings)[0]
+    from sklearn.metrics.pairwise import cosine_similarity
 
+    query_embedding = model.encode([query])
+
+    scores = cosine_similarity(query_embedding, embeddings)[0]
     top_indices = scores.argsort()[-5:][::-1]
 
     results = []
+
     for i in top_indices:
         results.append({
             "name": df.iloc[i]["name"],
             "url": urls[i],
             "score": round(float(scores[i]), 3),
-            "reason": f"Semantically matched with query: {query}"
+            "reason": f"Semantically matched query: {query}"
         })
 
     return {"recommendations": results}

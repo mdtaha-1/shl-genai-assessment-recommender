@@ -12,6 +12,9 @@ https://shl-genai-assessment-recommender-pd9i.onrender.com
 **Interactive API Docs (Swagger UI):**  
 https://shl-genai-assessment-recommender-pd9i.onrender.com/docs
 
+**Frontend Deloyment:**
+https://shl-frontend-lac.vercel.app/
+
 Example query:
 Need Java developer with collaboration skills
 
